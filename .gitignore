@@ -1,0 +1,21 @@
+# Maven 构建产物
+target/
+*.jar.original
+
+# IDE
+.idea/
+*.iml
+
+# CodeGraph 索引(本地工具生成)
+.codegraph/
+
+# 日志 / 本地数据
+*.log
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 本地敏感配置(含 API key,勿提交;参考 application.yml.example)
+/agent-app/src/main/resources/application.yml

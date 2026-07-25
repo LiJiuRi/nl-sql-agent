@@ -1,0 +1,19 @@
+<configuration>
+    <!--
+      stdio MCP 服务端:stdout 是 JSON-RPC 通道。
+      所有日志必须走 stderr,绝不能写 stdout,否则破坏协议握手。
+    -->
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{24} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 本项目代码出 INFO(工具/守卫等执行节点);框架保持安静 -->
+    <logger name="com.dstcar" level="INFO"/>
+
+    <root level="WARN">
+        <appender-ref ref="STDERR"/>
+    </root>
+</configuration>

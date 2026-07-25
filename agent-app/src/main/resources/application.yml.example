@@ -1,0 +1,40 @@
+# 复制本文件为 application.yml 后启动:
+#   cp agent-app/src/main/resources/application.yml.example agent-app/src/main/resources/application.yml
+#
+# API key 不要写进 application.yml(该文件已 .gitignore);用环境变量传入:
+#   export ZHIPU_API_KEY=你的key
+spring:
+  ai:
+    openai:
+      # 智谱 GLM 走 OpenAI 兼容端点(Spring AI 2.0 无 ZhipuAI 专用 starter)
+      # 用 GLM Coding Plan 套餐 key 时,base-url 改为 https://open.bigmodel.cn/api/coding/paas/v4/
+      base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/paas/v4/}
+      api-key: ${ZHIPU_API_KEY:dummy}
+      chat:
+        options:
+          model: ${ZHIPU_MODEL:glm-4.6}
+          temperature: 0.2
+    mcp:
+      client:
+        # 以 stdio 子进程方式拉起 db-mcp-server
+        stdio:
+          connections:
+            db-server:
+              command: ${java.home}/bin/java.exe
+              args:
+                - "-jar"
+                - "${DB_MCP_SERVER_JAR:./db-mcp-server/target/db-mcp-server-0.1.0-SNAPSHOT.jar}"
+  main:
+    banner-mode: off
+
+server:
+  port: 8080
+
+app:
+  memory:
+    max-messages: 10   # 轻量多轮:保留最近 10 条消息
+
+logging:
+  level:
+    # 排障时 export AI_LOG_LEVEL=DEBUG,可看完整 LLM 往返与工具调用决策
+    org.springframework.ai: ${AI_LOG_LEVEL:INFO}

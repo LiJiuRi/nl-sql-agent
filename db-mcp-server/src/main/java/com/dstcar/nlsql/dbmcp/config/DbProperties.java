@@ -1,0 +1,13 @@
+package com.dstcar.nlsql.dbmcp.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/** 只读安全边界配置。对应 application.yml 的 app.db.* */
+@ConfigurationProperties("app.db")
+public record DbProperties(
+        String path,
+        int rowLimit,
+        int queryTimeoutSeconds,
+        long maxBytes
+) {
+}

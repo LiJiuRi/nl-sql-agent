@@ -1,0 +1,23 @@
+spring:
+  main:
+    web-application-type: none          # stdio MCP server,不需要 web 容器
+    banner-mode: off                    # 关掉 banner,避免污染 stdout(JSON-RPC 通道)
+  ai:
+    mcp:
+      server:
+        name: db-mcp-server
+        version: 0.1.0
+        stdio: true                     # 启用 stdio 传输(被 agent-app 作为子进程拉起)
+        type: sync
+        annotation-scanner:
+          enabled: false                # 关闭注解扫描;工具由 ToolConfig 显式注册(更可靠)
+
+# 自定义只读安全边界(ADR: 只读 + 1000行/10s/1MB)
+app:
+  db:
+    path: ${user.home}/.nl-sql-agent/bill.db
+    row-limit: 1000
+    query-timeout-seconds: 10
+    max-bytes: 1048576                  # 1MB
+
+# 日志路由见 logback-spring.xml:全部走 stderr,stdout 留给 JSON-RPC

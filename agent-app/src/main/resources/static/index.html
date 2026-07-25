@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账单分析助手</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #171a21;
+            --bubble-user: #2563eb;
+            --bubble-bot: #1f2430;
+            --text: #e6e6e6;
+            --muted: #8a93a6;
+            --accent: #38bdf8;
+            --code-bg: #0c0e12;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 14px 20px;
+            background: var(--panel);
+            border-bottom: 1px solid #262b36;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        header span { color: var(--accent); }
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .msg { max-width: 88%; padding: 12px 14px; border-radius: 12px; line-height: 1.6; white-space: normal; word-wrap: break-word; }
+        .msg.user { align-self: flex-end; background: var(--bubble-user); color: #fff; }
+        .msg.bot { align-self: flex-start; background: var(--bubble-bot); }
+        .msg.bot .md { white-space: normal; }
+        .msg pre {
+            background: var(--code-bg);
+            border: 1px solid #262b36;
+            border-radius: 8px;
+            padding: 10px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+        .msg code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+        .msg table { border-collapse: collapse; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }
+        .msg th, .msg td { border: 1px solid #2c3240; padding: 5px 9px; text-align: left; }
+        .msg th { background: #222732; }
+        .msg strong { color: #fff; }
+        .typing { color: var(--muted); font-style: italic; }
+        form {
+            display: flex;
+            gap: 8px;
+            padding: 14px 20px;
+            background: var(--panel);
+            border-top: 1px solid #262b36;
+        }
+        input {
+            flex: 1;
+            padding: 11px 14px;
+            border-radius: 10px;
+            border: 1px solid #2c3240;
+            background: #0f1218;
+            color: var(--text);
+            font-size: 14px;
+            outline: none;
+        }
+        input:focus { border-color: var(--accent); }
+        button {
+            padding: 11px 18px;
+            border: none;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #06223a;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:disabled { opacity: .5; cursor: default; }
+    </style>
+</head>
+<body>
+<header>📊 <span>账单分析助手</span> <small style="color:var(--muted);font-weight:400">— 中文提问 · 自动 NL→SQL · 结构化结果 + 业务解读</small></header>
+
+<div id="messages"></div>
+
+<form id="chat-form">
+    <input id="input" type="text" placeholder="用中文描述你想分析的,例如:上月退款率最高的 5 个商户" autocomplete="off" />
+    <button id="send" type="submit">发送</button>
+</form>
+
+<script>
+    const messagesEl = document.getElementById('messages');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    let conversationId = null;
+
+    function esc(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // 极简 markdown:代码块 → <pre>,行内 `code`,**bold**,以及 markdown 表格。
+    function renderMarkdown(text) {
+        const blocks = text.split(/```/);
+        let html = '';
+        blocks.forEach((blk, i) => {
+            if (i % 2 === 1) {
+                // 代码块;去掉开头的语言标识行(如 sql)
+                const code = blk.replace(/^[a-zA-Z0-9]*\n/, '').replace(/\n$/, '');
+                html += '<pre><code>' + esc(code) + '</code></pre>';
+            } else {
+                html += renderInline(blk);
+            }
+        });
+        return html;
+    }
+
+    function renderInline(text) {
+        // 先按行处理表格,其余做 inline 替换
+        const lines = text.split('\n');
+        let out = '';
+        let i = 0;
+        while (i < lines.length) {
+            const line = lines[i];
+            const next = lines[i + 1] || '';
+            const isRow = /^\s*\|.*\|\s*$/.test(line);
+            const isSep = /^\s*\|[\s:|-]+\|\s*$/.test(next);
+            if (isRow && isSep) {
+                // 表格:表头 = line,分隔 = next,后续连续行 = 数据
+                const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+                const headers = parseRow(line);
+                let rows = [];
+                let j = i + 2;
+                while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) {
+                    rows.push(parseRow(lines[j]));
+                    j++;
+                }
+                let t = '<table><thead><tr>' + headers.map(h => '<th>' + mdInline(h) + '</th>').join('') + '</tr></thead><tbody>';
+                t += rows.map(r => '<tr>' + r.map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>').join('');
+                t += '</tbody></table>';
+                out += t;
+                i = j;
+            } else {
+                out += mdInline(line) + '<br>';
+                i++;
+            }
+        }
+        return out;
+    }
+
+    function mdInline(s) {
+        return esc(s)
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    }
+
+    function addMsg(role, contentHtml) {
+        const div = document.createElement('div');
+        div.className = 'msg ' + role;
+        const inner = document.createElement('div');
+        inner.className = 'md';
+        inner.innerHTML = contentHtml;
+        div.appendChild(inner);
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return inner;
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = input.value.trim();
+        if (!message) return;
+        addMsg('user', esc(message));
+        input.value = '';
+        sendBtn.disabled = true;
+        const typing = addMsg('bot', '<span class="typing">正在分析…</span>');
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversationId, message })
+            });
+            if (!res.ok) {
+                const txt = await res.text();
+                throw new Error('HTTP ' + res.status + (txt ? ': ' + txt : ''));
+            }
+            const data = await res.json();
+            conversationId = data.conversationId;
+            typing.innerHTML = renderMarkdown(data.content || '(空响应)');
+        } catch (err) {
+            typing.innerHTML = '<span style="color:#f87171">请求失败:' + esc(err.message) + '</span>';
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    });
+
+    input.focus();
+</script>
+</body>
+</html>
