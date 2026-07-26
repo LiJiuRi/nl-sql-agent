@@ -61,7 +61,9 @@ public class ChatController {
         }
     }
 
-    /** 长文本摘要:截断到 200 字符,避免日志噪声。 */
+    /**
+     * 长文本摘要:截断到 200 字符,避免日志噪声。
+     */
     private static String summarize(String text) {
         if (text == null) return "";
         return text.length() <= 200 ? text : text.substring(0, 200) + "...(" + text.length() + "字)";
