@@ -21,94 +21,100 @@
             background: var(--bg);
             color: var(--text);
             font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-            display: flex;
-            flex-direction: column;
         }
+        /* 登录视图 */
+        #login-view {
+            height: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 12px;
+        }
+        #login-view input { width: 240px; }
+        #login-err { color: #f87171; font-size: 13px; min-height: 18px; }
+        /* 主视图 */
+        #app-view { height: 100%; display: flex; flex-direction: column; }
         header {
-            padding: 14px 20px;
-            background: var(--panel);
-            border-bottom: 1px solid #262b36;
-            font-size: 16px;
-            font-weight: 600;
+            padding: 12px 20px; background: var(--panel); border-bottom: 1px solid #262b36;
+            font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px;
         }
         header span { color: var(--accent); }
-        #messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
+        #user-tag { color: var(--muted); font-weight: 400; font-size: 13px; }
+        #logout {
+            margin-left: auto; padding: 6px 12px; font-size: 13px;
+            background: transparent; color: var(--muted); border: 1px solid #2c3240;
         }
-        .msg { max-width: 88%; padding: 12px 14px; border-radius: 12px; line-height: 1.6; white-space: normal; word-wrap: break-word; }
+        #logout:hover { color: var(--text); }
+        #main { flex: 1; display: flex; overflow: hidden; }
+        #sidebar {
+            width: 240px; background: var(--panel); border-right: 1px solid #262b36;
+            display: flex; flex-direction: column;
+        }
+        #new-conv { margin: 12px; }
+        #conv-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+        #conv-list li {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #1f2430;
+            font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #conv-list li:hover { background: #1f2430; color: var(--text); }
+        #conv-list li.active { background: #1f2430; color: var(--accent); }
+        #chat-area { flex: 1; display: flex; flex-direction: column; }
+        #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+        .msg { max-width: 88%; padding: 12px 14px; border-radius: 12px; line-height: 1.6; word-wrap: break-word; }
         .msg.user { align-self: flex-end; background: var(--bubble-user); color: #fff; }
         .msg.bot { align-self: flex-start; background: var(--bubble-bot); }
-        .msg.bot .md { white-space: normal; }
-        .msg pre {
-            background: var(--code-bg);
-            border: 1px solid #262b36;
-            border-radius: 8px;
-            padding: 10px;
-            overflow-x: auto;
-            margin: 8px 0;
-            font-size: 13px;
-        }
+        .msg pre { background: var(--code-bg); border: 1px solid #262b36; border-radius: 8px; padding: 10px; overflow-x: auto; margin: 8px 0; font-size: 13px; }
         .msg code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
         .msg table { border-collapse: collapse; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }
         .msg th, .msg td { border: 1px solid #2c3240; padding: 5px 9px; text-align: left; }
         .msg th { background: #222732; }
         .msg strong { color: #fff; }
         .typing { color: var(--muted); font-style: italic; }
-        form {
-            display: flex;
-            gap: 8px;
-            padding: 14px 20px;
-            background: var(--panel);
-            border-top: 1px solid #262b36;
-        }
-        input {
-            flex: 1;
-            padding: 11px 14px;
-            border-radius: 10px;
-            border: 1px solid #2c3240;
-            background: #0f1218;
-            color: var(--text);
-            font-size: 14px;
-            outline: none;
-        }
+        form { display: flex; gap: 8px; padding: 14px 20px; background: var(--panel); border-top: 1px solid #262b36; }
+        input { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1px solid #2c3240; background: #0f1218; color: var(--text); font-size: 14px; outline: none; }
         input:focus { border-color: var(--accent); }
-        button {
-            padding: 11px 18px;
-            border: none;
-            border-radius: 10px;
-            background: var(--accent);
-            color: #06223a;
-            font-weight: 700;
-            cursor: pointer;
-            font-size: 14px;
-        }
+        button { padding: 11px 18px; border: none; border-radius: 10px; background: var(--accent); color: #06223a; font-weight: 700; cursor: pointer; font-size: 14px; }
         button:disabled { opacity: .5; cursor: default; }
     </style>
 </head>
 <body>
-<header>📊 <span>账单分析助手</span> <small style="color:var(--muted);font-weight:400">— 中文提问 · 自动 NL→SQL · 结构化结果 + 业务解读</small></header>
 
-<div id="messages"></div>
+<!-- 登录视图 -->
+<div id="login-view">
+    <h2>📊 账单分析助手</h2>
+    <form id="login-form">
+        <input id="login-user" type="text" placeholder="用户名" autocomplete="off" />
+        <input id="login-pw" type="password" placeholder="密码" autocomplete="off" />
+        <button type="submit">登录</button>
+    </form>
+    <div id="login-err"></div>
+</div>
 
-<form id="chat-form">
-    <input id="input" type="text" placeholder="用中文描述你想分析的,例如:上月退款率最高的 5 个商户" autocomplete="off" />
-    <button id="send" type="submit">发送</button>
-</form>
+<!-- 主视图 -->
+<div id="app-view" style="display:none">
+    <header>📊 <span>账单分析助手</span> <small id="user-tag"></small> <button id="logout" type="button">登出</button></header>
+    <div id="main">
+        <aside id="sidebar">
+            <button id="new-conv" type="button">+ 新会话</button>
+            <ul id="conv-list"></ul>
+        </aside>
+        <section id="chat-area">
+            <div id="messages"></div>
+            <form id="chat-form">
+                <input id="input" type="text" placeholder="用中文描述你想分析的,例如:上月退款率最高的 5 个商户" autocomplete="off" />
+                <button id="send" type="submit">发送</button>
+            </form>
+        </section>
+    </div>
+</div>
 
 <script>
-    const messagesEl = document.getElementById('messages');
-    const form = document.getElementById('chat-form');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
+    const $ = id => document.getElementById(id);
+    const messagesEl = () => $('messages');
+    let token = localStorage.getItem('token');
+    let userId = localStorage.getItem('userId');
     let conversationId = null;
+    let conversations = [];
 
     function esc(s) {
-        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return (s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     // 极简 markdown:代码块 → <pre>,行内 `code`,**bold**,以及 markdown 表格。
@@ -117,7 +123,6 @@
         let html = '';
         blocks.forEach((blk, i) => {
             if (i % 2 === 1) {
-                // 代码块;去掉开头的语言标识行(如 sql)
                 const code = blk.replace(/^[a-zA-Z0-9]*\n/, '').replace(/\n$/, '');
                 html += '<pre><code>' + esc(code) + '</code></pre>';
             } else {
@@ -128,7 +133,6 @@
     }
 
     function renderInline(text) {
-        // 先按行处理表格,其余做 inline 替换
         const lines = text.split('\n');
         let out = '';
         let i = 0;
@@ -138,7 +142,6 @@
             const isRow = /^\s*\|.*\|\s*$/.test(line);
             const isSep = /^\s*\|[\s:|-]+\|\s*$/.test(next);
             if (isRow && isSep) {
-                // 表格:表头 = line,分隔 = next,后续连续行 = 数据
                 const parseRow = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
                 const headers = parseRow(line);
                 let rows = [];
@@ -170,27 +173,123 @@
         const div = document.createElement('div');
         div.className = 'msg ' + role;
         const inner = document.createElement('div');
-        inner.className = 'md';
         inner.innerHTML = contentHtml;
         div.appendChild(inner);
-        messagesEl.appendChild(div);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        messagesEl().appendChild(div);
+        messagesEl().scrollTop = messagesEl().scrollHeight;
         return inner;
     }
 
-    form.addEventListener('submit', async (e) => {
+    // 带 JWT 的 fetch;401 → 清登录态
+    async function api(path, opts = {}) {
+        const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const res = await fetch(path, { ...opts, headers });
+        if (res.status === 401) {
+            token = null; localStorage.removeItem('token');
+            showLogin();
+            throw new Error('未登录或登录已过期');
+        }
+        return res;
+    }
+
+    function showLogin() {
+        $('login-view').style.display = 'flex';
+        $('app-view').style.display = 'none';
+        $('login-err').textContent = '';
+    }
+
+    function showApp() {
+        $('login-view').style.display = 'none';
+        $('app-view').style.display = 'flex';
+        $('user-tag').textContent = '(' + userId + ')';
+        conversationId = null;
+        messagesEl().innerHTML = '';
+        loadConversations();
+        $('input').focus();
+    }
+
+    // 登录
+    $('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const message = input.value.trim();
+        $('login-err').textContent = '';
+        try {
+            const res = await api('/api/login', {
+                method: 'POST',
+                body: JSON.stringify({ username: $('login-user').value, password: $('login-pw').value })
+            });
+            if (!res.ok) { $('login-err').textContent = '用户名或密码错误'; return; }
+            const data = await res.json();
+            token = data.token; userId = data.userId;
+            localStorage.setItem('token', token);
+            localStorage.setItem('userId', userId);
+            showApp();
+        } catch (err) {
+            $('login-err').textContent = err.message;
+        }
+    });
+
+    // 会话列表
+    async function loadConversations() {
+        try {
+            const res = await api('/api/conversations');
+            conversations = res.ok ? await res.json() : [];
+        } catch (e) { conversations = []; }
+        renderConvList();
+    }
+
+    function renderConvList() {
+        $('conv-list').innerHTML = conversations.map(c =>
+            `<li data-id="${esc(c.conversationId)}" class="${c.conversationId === conversationId ? 'active' : ''}" title="${esc(c.title)}">${esc(c.title)}</li>`
+        ).join('') || '<li style="color:#555;cursor:default">暂无会话</li>';
+        $('conv-list').querySelectorAll('li[data-id]').forEach(li =>
+            li.onclick = () => switchConv(li.dataset.id));
+    }
+
+    // 新建会话
+    $('new-conv').onclick = async () => {
+        try {
+            const res = await api('/api/conversations', { method: 'POST' });
+            if (!res.ok) return;
+            const c = await res.json();
+            conversations.unshift(c);
+            conversationId = c.conversationId;
+            messagesEl().innerHTML = '';
+            renderConvList();
+            $('input').focus();
+        } catch (e) { /* 401 已处理 */ }
+    };
+
+    // 切换会话:加载历史
+    async function switchConv(id) {
+        conversationId = id;
+        renderConvList();
+        messagesEl().innerHTML = '';
+        try {
+            const res = await api(`/api/conversations/${id}/messages`);
+            if (res.ok) {
+                const msgs = await res.json();
+                msgs.forEach(m => addMsg(
+                    m.role === 'user' ? 'user' : 'bot',
+                    m.role === 'user' ? esc(m.content) : renderMarkdown(m.content || '')
+                ));
+            }
+        } catch (e) { /* 401 已处理 */ }
+        $('input').focus();
+    }
+
+    // 发消息
+    $('chat-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = $('input').value.trim();
         if (!message) return;
         addMsg('user', esc(message));
-        input.value = '';
-        sendBtn.disabled = true;
+        $('input').value = '';
+        $('send').disabled = true;
         const typing = addMsg('bot', '<span class="typing">正在分析…</span>');
-
         try {
-            const res = await fetch('/api/chat', {
+            const res = await api('/api/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ conversationId, message })
             });
             if (!res.ok) {
@@ -200,15 +299,25 @@
             const data = await res.json();
             conversationId = data.conversationId;
             typing.innerHTML = renderMarkdown(data.content || '(空响应)');
+            loadConversations(); // 刷新侧栏(新会话/标题)
         } catch (err) {
             typing.innerHTML = '<span style="color:#f87171">请求失败:' + esc(err.message) + '</span>';
         } finally {
-            sendBtn.disabled = false;
-            input.focus();
+            $('send').disabled = false;
+            $('input').focus();
         }
     });
 
-    input.focus();
+    // 登出
+    $('logout').onclick = () => {
+        token = null; userId = null;
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        showLogin();
+    };
+
+    // 初始化
+    if (token) showApp(); else showLogin();
 </script>
 </body>
 </html>

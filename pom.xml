@@ -27,6 +27,8 @@
         <spring-ai.version>2.0.0</spring-ai.version>
         <!-- 保留参数名,使 @Tool 方法参数名(table/sql/limit)能传达给模型 -->
         <maven.compiler.parameters>true</maven.compiler.parameters>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
     </properties>
 
     <dependencyManagement>

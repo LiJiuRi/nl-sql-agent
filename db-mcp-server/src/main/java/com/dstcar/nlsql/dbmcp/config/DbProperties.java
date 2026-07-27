@@ -5,7 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /** 只读安全边界配置。对应 application.yml 的 app.db.* */
 @ConfigurationProperties("app.db")
 public record DbProperties(
-        String path,
+        String url,
+        String user,
+        String password,
         int rowLimit,
         int queryTimeoutSeconds,
         long maxBytes

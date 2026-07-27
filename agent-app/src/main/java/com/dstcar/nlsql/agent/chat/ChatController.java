@@ -1,30 +1,38 @@
 package com.dstcar.nlsql.agent.chat;
 
+import com.dstcar.nlsql.agent.auth.JwtFilter;
+import com.dstcar.nlsql.agent.conversation.ConversationRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
 /**
- * 聊天接口(非流式 v1):POST /api/chat。
- * 以 conversationId 串联多轮记忆。
+ * 聊天接口(非流式 v1):POST /api/chat(需 JWT)。
+ * 以 conversationId 串联多轮记忆(持久化),按 userId 隔离会话(ADR-0007)。
  */
 @RestController
 @RequestMapping("/api")
 public class ChatController {
 
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
+    private static final int TITLE_MAX = 30;
 
     private final ChatClient chatClient;
+    private final ConversationRepository conversations;
 
-    public ChatController(ChatClient chatClient) {
+    public ChatController(ChatClient chatClient, ConversationRepository conversations) {
         this.chatClient = chatClient;
+        this.conversations = conversations;
     }
 
     public record ChatRequest(String conversationId, String message) {
@@ -34,12 +42,18 @@ public class ChatController {
     }
 
     @PostMapping("/chat")
-    public ChatResponse chat(@RequestBody ChatRequest request) {
+    public ChatResponse chat(@RequestBody ChatRequest request, HttpServletRequest req) {
+        String userId = requireUserId(req);
+        // 确定会话:无 conversationId 则新建并落库;有则校验归属(防越权访问他人会话)
         String conversationId = (request.conversationId() == null || request.conversationId().isBlank())
-                ? UUID.randomUUID().toString()
+                ? newConversation(userId, request.message())
                 : request.conversationId();
+        if (!conversations.owns(conversationId, userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "会话不存在或不属于当前用户");
+        }
 
-        log.info("[chat] 收到分析需求 conversationId={} message=\"{}\"", conversationId, summarize(request.message()));
+        log.info("[chat] 收到 userId={} conversationId={} message=\"{}\"",
+                userId, conversationId, summarize(request.message()));
         long start = System.nanoTime();
         try {
             String content = chatClient.prompt()
@@ -48,12 +62,15 @@ public class ChatController {
                     .call()
                     .content();
 
-            log.info("[chat] 完成 conversationId={} 耗时={}ms 回答长度={}",
-                    conversationId, (System.nanoTime() - start) / 1_000_000,
+            // 前端历史持久化(user/assistant);Spring AI 记忆另由 JdbcChatMemoryRepository 管理上下文窗口
+            conversations.appendMessage(conversationId, "user", request.message());
+            conversations.appendMessage(conversationId, "assistant", content == null ? "" : content);
+
+            log.info("[chat] 完成 userId={} conversationId={} 耗时={}ms 回答长度={}",
+                    userId, conversationId, (System.nanoTime() - start) / 1_000_000,
                     content == null ? 0 : content.length());
             return new ChatResponse(conversationId, content);
         } catch (RuntimeException e) {
-            // 对外仍返回 500(行为不变);此处仅补关联日志,便于定位卡在哪一步。
             log.error("[chat] 失败 conversationId={} 耗时={}ms 异常={}: {}",
                     conversationId, (System.nanoTime() - start) / 1_000_000,
                     e.getClass().getSimpleName(), e.getMessage());
@@ -61,11 +78,27 @@ public class ChatController {
         }
     }
 
-    /**
-     * 长文本摘要:截断到 200 字符,避免日志噪声。
-     */
+    private String newConversation(String userId, String firstMessage) {
+        String conversationId = UUID.randomUUID().toString();
+        String title = summarize(firstMessage);
+        if (title.isBlank()) {
+            title = "新会话";
+        }
+        conversations.create(conversationId, userId, title);
+        return conversationId;
+    }
+
+    private static String requireUserId(HttpServletRequest req) {
+        String uid = (String) req.getAttribute(JwtFilter.USER_ID_ATTR);
+        if (uid == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        return uid;
+    }
+
+    /** 文本摘要:截断到 30 字符(用于日志 + 会话标题)。 */
     private static String summarize(String text) {
         if (text == null) return "";
-        return text.length() <= 200 ? text : text.substring(0, 200) + "...(" + text.length() + "字)";
+        return text.length() <= TITLE_MAX ? text : text.substring(0, TITLE_MAX) + "...";
     }
 }

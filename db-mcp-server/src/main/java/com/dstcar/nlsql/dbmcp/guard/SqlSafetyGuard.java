@@ -4,7 +4,7 @@ import java.util.Set;
 
 /**
  * 解析层只读守卫:确保进入 run_readonly_sql 的 SQL 只是一条 SELECT。
- * 与连接级 PRAGMA query_only=ON 构成纵深防御(ADR-0003)。
+ * 与只读 MySQL 账号(GRANT SELECT)构成纵深防御(ADR-0003 / 0006)。
  *
  * 规则:
  *  1. 非空、单条语句(禁 ';');
@@ -19,7 +19,10 @@ public final class SqlSafetyGuard {
             "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE",
             "ATTACH", "DETACH", "PRAGMA", "VACUUM", "REINDEX", "GRANT", "REVOKE",
             "TRIGGER", "SAVEPOINT", "BEGIN", "COMMIT", "ROLLBACK", "TRANSACTION",
-            "EXPLAIN", "ANALYZE", "LOAD", "INTO"
+            "EXPLAIN", "ANALYZE", "LOAD", "INTO",
+            // MySQL 方言写/DDL/会话/过程关键字
+            "CALL", "DO", "SET", "FLUSH", "HANDLER", "LOCK", "UNLOCK",
+            "RESET", "SHUTDOWN", "KILL", "USE"
     );
 
     /** 校验失败抛 IllegalArgumentException(会被工具层转告给 LLM)。 */

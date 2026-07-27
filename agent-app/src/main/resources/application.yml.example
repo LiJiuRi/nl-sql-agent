@@ -1,8 +1,13 @@
 # 复制本文件为 application.yml 后启动:
 #   cp agent-app/src/main/resources/application.yml.example agent-app/src/main/resources/application.yml
 #
-# API key 不要写进 application.yml(该文件已 .gitignore);用环境变量传入:
-#   export ZHIPU_API_KEY=你的key
+# 敏感凭证用环境变量传入,不写死:
+#   export ZHIPU_API_KEY=...
+#   export MYSQL_BILL_URL='jdbc:mysql://host:3306/dst_db_bill?useSSL=false&serverTimezone=Asia/Shanghai' \
+#        MYSQL_BILL_USER=bill_query_account MYSQL_BILL_PASSWORD=...   # 只读账单库(传给 db-mcp-server 子进程)
+#   export MEMORY_DB_URL='jdbc:mysql://host:3306/agent_memory?...' MEMORY_DB_USER=... MEMORY_DB_PASSWORD=...  # 记忆库(可写)
+#   export JWT_SECRET=...                    # 至少 32 字符
+#   export ADMIN_PW_HASH='$2a$10$...'        # 可选,覆盖默认 admin 密码 hash
 spring:
   ai:
     openai:
@@ -14,9 +19,13 @@ spring:
         options:
           model: ${ZHIPU_MODEL:glm-4.6}
           temperature: 0.2
+    chat:
+      memory:
+        repository:
+          jdbc:
+            schema: classpath:schema-mysql.sql   # 自备 schema(Spring AI 2.0 无 schema-mysql.sql)
     mcp:
       client:
-        # 以 stdio 子进程方式拉起 db-mcp-server
         stdio:
           connections:
             db-server:
@@ -24,6 +33,12 @@ spring:
               args:
                 - "-jar"
                 - "${DB_MCP_SERVER_JAR:./db-mcp-server/target/db-mcp-server-0.1.0-SNAPSHOT.jar}"
+  datasource:
+    # 记忆库(中心 MySQL 的 agent_memory 库,可写账号,ADR-0007)——与只读账单库隔离
+    url: ${MEMORY_DB_URL}
+    username: ${MEMORY_DB_USER}
+    password: ${MEMORY_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   main:
     banner-mode: off
 
@@ -33,6 +48,13 @@ server:
 app:
   memory:
     max-messages: 10   # 轻量多轮:保留最近 10 条消息
+  auth:
+    jwt-secret: ${JWT_SECRET:change-this-jwt-secret-need-at-least-32-chars-long-xxxxx}
+    jwt-ttl-hours: 24
+    users:
+      # 预设账号(管理员加人在此);密码 BCrypt hash。默认 admin/admin123(生产务必用 ADMIN_PW_HASH 覆盖)
+      - username: admin
+        password-hash: ${ADMIN_PW_HASH:$2a$10$nzU3botqd2PhU/oVS.tXO.8WASLIecqOY4EHHzaQRs.W5jcyV/lJm}
 
 logging:
   level:

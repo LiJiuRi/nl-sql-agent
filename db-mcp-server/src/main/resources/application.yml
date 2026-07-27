@@ -15,7 +15,10 @@ spring:
 # 自定义只读安全边界(ADR: 只读 + 1000行/10s/1MB)
 app:
   db:
-    path: ${user.home}/.nl-sql-agent/bill.db
+    # 账单库连接(只读账号 bill_query_account,只授 SELECT — 见 ADR-0006);密码走环境变量,不进 git
+    url: ${MYSQL_BILL_URL}
+    user: ${MYSQL_BILL_USER}
+    password: ${MYSQL_BILL_PASSWORD}
     row-limit: 1000
     query-timeout-seconds: 10
     max-bytes: 1048576                  # 1MB

@@ -3,7 +3,7 @@ package com.dstcar.nlsql.agent.config;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemoryRepository;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,13 +18,9 @@ import org.springframework.context.annotation.Configuration;
 public class ChatClientConfig {
 
     @Bean
-    InMemoryChatMemoryRepository chatMemoryRepository() {
-        return new InMemoryChatMemoryRepository();
-    }
-
-    @Bean
-    ChatMemory chatMemory(InMemoryChatMemoryRepository repository,
+    ChatMemory chatMemory(ChatMemoryRepository repository,
                           @Value("${app.memory.max-messages:10}") int maxMessages) {
+        // ChatMemoryRepository 由 JdbcChatMemoryRepository auto-config 提供(ADR-0007,持久化到中心 MySQL)
         return MessageWindowChatMemory.builder()
                 .chatMemoryRepository(repository)
                 .maxMessages(maxMessages)
@@ -44,8 +40,8 @@ public class ChatClientConfig {
 
     /** 系统提示词:定义工作流、4 段回答格式、反幻觉原则。 */
     static final String SYSTEM_PROMPT = """
-            你是"账单分析助手",帮用户用中文分析一个账单中心的 SQLite 数据库。
-            数据库有 4 张表:merchant(商户)、bill(账单)、payment(支付/回款)、refund(退款)。
+            你是"账单分析助手",帮用户用中文分析一个账单中心的数据库。
+            数据库的真实表结构未知,必须先用 list_tables 工具发现有哪些表,用 describe_table 了解列与外键,必要时 sample_data 看枚举取值;不要假设表名或列名。
 
             ## 工作流程(你自主调用工具,按需多次)
             1. 先 list_tables 看有哪些表;describe_table 了解表结构(列、类型、外键);必要时 sample_data 看真实取值(尤其 status、channel、category、region 等枚举)。
