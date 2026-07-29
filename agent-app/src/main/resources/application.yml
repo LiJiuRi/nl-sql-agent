@@ -1,29 +1,27 @@
-# 复制本文件为 application.yml 后启动:
-#   cp agent-app/src/main/resources/application.yml.example agent-app/src/main/resources/application.yml
-#
-# 敏感凭证用环境变量传入,不写死:
-#   export ZHIPU_API_KEY=...
-#   export MYSQL_BILL_URL='jdbc:mysql://host:3306/dst_db_bill?useSSL=false&serverTimezone=Asia/Shanghai' \
-#        MYSQL_BILL_USER=bill_query_account MYSQL_BILL_PASSWORD=...   # 只读账单库(传给 db-mcp-server 子进程)
-#   export MEMORY_DB_URL='jdbc:mysql://host:3306/agent_memory?...' MEMORY_DB_USER=... MEMORY_DB_PASSWORD=...  # 记忆库(可写)
-#   export JWT_SECRET=...                    # 至少 32 字符
-#   export ADMIN_PW_HASH='$2a$10$...'        # 可选,覆盖默认 admin 密码 hash
+# 启动前需设置的环境变量(凭证走 env,不写死):
+#   ZHIPU_API_KEY=...                 # 智谱 GLM key(必填;用 Coding Plan 套餐时 base-url 取下方 coding 端点)
+#   MEMORY_DB_URL='jdbc:mysql://host:3306/dst_db_invoice?useSSL=false&serverTimezone=Asia/Shanghai'
+#       MEMORY_DB_USER=... MEMORY_DB_PASSWORD=...                                    # 记忆库(可写,ADR-0007)
+#   MYSQL_BILL_URL='jdbc:mysql://host:3306/dst_db_bill?...' MYSQL_BILL_USER=bill_query_account MYSQL_BILL_PASSWORD=...  # 只读账单库(传给 db-mcp-server 子进程)
+#   JWT_SECRET=...                    # 至少 32 字符
+#   ADMIN_PW_HASH='$2a$10$...'        # 可选,覆盖默认 admin 密码 hash
 spring:
   ai:
     openai:
       # 智谱 GLM 走 OpenAI 兼容端点(Spring AI 2.0 无 ZhipuAI 专用 starter)
       # 用 GLM Coding Plan 套餐 key 时,base-url 改为 https://open.bigmodel.cn/api/coding/paas/v4/
-      base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/paas/v4/}
-      api-key: ${ZHIPU_API_KEY:dummy}
+      base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/coding/paas/v4/}
+      api-key: ${ZHIPU_API_KEY}
       chat:
         options:
-          model: ${ZHIPU_MODEL:glm-4.6}
+          model: ${ZHIPU_MODEL:glm-5.2}
           temperature: 0.2
     chat:
       memory:
         repository:
           jdbc:
-            schema: classpath:schema-mysql.sql   # 自备 schema(Spring AI 2.0 无 schema-mysql.sql)
+            initialize-schema: always            # MySQL 必须显式开(默认 embedded 不执行建表)
+            schema: classpath:schema-mysql.sql   # 自备 schema(统一 invoice_agent_ 表名;2.0 bundled 脚本表名是默认的)
     mcp:
       client:
         stdio:
@@ -34,7 +32,7 @@ spring:
                 - "-jar"
                 - "${DB_MCP_SERVER_JAR:./db-mcp-server/target/db-mcp-server-0.1.0-SNAPSHOT.jar}"
   datasource:
-    # 记忆库(中心 MySQL 的 agent_memory 库,可写账号,ADR-0007)——与只读账单库隔离
+    # 记忆库(中心 MySQL 的 dst_db_invoice 库,可写账号,ADR-0007)——与只读账单库隔离
     url: ${MEMORY_DB_URL}
     username: ${MEMORY_DB_USER}
     password: ${MEMORY_DB_PASSWORD}

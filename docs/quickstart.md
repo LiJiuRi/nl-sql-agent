@@ -116,7 +116,7 @@ curl -s -X POST http://localhost:8080/api/chat \
 
 > 注:`APP_DB_PATH` 是 Spring Boot 对配置项 `app.db.path` 的环境变量映射。`README.md` 里提到的 `DB_PATH` 当前**未在配置中绑定,不会生效**;要改库路径请用 `APP_DB_PATH` 或启动参数 `--app.db.path=...`。
 
-多轮记忆窗口(默认保留最近 10 条)在 `agent-app/src/main/resources/application.yml` 的 `app.memory.max-messages`;**记忆在内存,重启即失**。
+多轮记忆窗口(默认保留最近 10 条)在 `agent-app/src/main/resources/application.yml` 的 `app.memory.max-messages`;**记忆持久化到中心 MySQL(`dst_db_invoice` 库),重启不丢**。
 
 ## 8. 常见排障
 

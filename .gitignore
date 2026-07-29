@@ -17,6 +17,3 @@ target/
 .DS_Store
 Thumbs.db
 
-# 本地配置(含凭证,不入 git;用 application.yml.example 作模板)
-agent-app/src/main/resources/application.yml
-

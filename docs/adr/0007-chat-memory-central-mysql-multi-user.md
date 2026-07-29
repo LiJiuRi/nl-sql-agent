@@ -11,3 +11,10 @@
 **Consequences**:引入"用户/会话归属"概念;`app_user` 不建表(预设账号在 `application.yml`);新增 `conversation(conversation_id, user_id, title, created_at)` 表与 Spring AI 的 `SPRING_AI_CHAT_MEMORY` 表同在 `agent_memory` 库。Spring AI 2.0 不提供 `schema-mysql.sql`,需用 bundled 的 `schema-mariadb.sql` 改(去 `CREATE INDEX IF NOT EXISTS`)或自备 `schema.sql`。
 
 **Status**: accepted。
+
+**实施注记(2026-07-29)**:本 ADR 的持久化此前**并未真正生效**——`pom` 声明的 `spring-ai-starter-model-chat-memory-repository-jdbc` 本地未拉取、且 `initialize-schema` 默认 `embedded`(MySQL 不执行建表),运行时回退 `InMemoryChatMemoryRepository`,导致 `SPRING_AI_CHAT_MEMORY` 表为"死表"(architecture.md 此前已如实记录"记忆不持久")。本次修复并统一命名:
+
+- `initialize-schema: always` 让建表脚本在 MySQL 上执行;补 `sequence_id BIGINT NOT NULL` 列(2.0.0 的 INSERT/`ORDER BY sequence_id` 依赖它,旧 schema 缺失会导致写库报错)。
+- Spring AI 2.0 无 `table-name` 配置项(GitHub issue #2974,最终决定是统一命名而非可配),故新增 `InvoiceAgentMysqlChatMemoryRepositoryDialect`(override 全部 4 条 SQL)把表名固定为 `invoice_agent_chat_memory`,并以 `JdbcChatMemoryConfig` 显式声明 `JdbcChatMemoryRepository` bean 让 dialect 生效。
+- 命名统一:记忆库 `agent_memory` → **`dst_db_invoice`**;三表统一 `invoice_agent_` 前缀(`invoice_agent_chat_memory`/`invoice_agent_conversation`/`invoice_agent_message`)。
+- Consequences 中"Spring AI 2.0 不提供 `schema-mysql.sql`"系 M/RC 旧版认知,2.0.0 GA 已提供 bundled `schema-mysql.sql`;本项目仍自备 schema 以统一表名。
