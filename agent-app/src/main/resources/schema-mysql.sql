@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS invoice_agent_chat_memory (
     sequence_id     BIGINT       NOT NULL,
     KEY idx_iacm_conv_ts  (conversation_id, `timestamp`),
     KEY idx_iacm_conv_seq (conversation_id, sequence_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 多会话元数据(ADR-0007:按 userId 隔离,各自私有)
 CREATE TABLE IF NOT EXISTS invoice_agent_conversation (
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS invoice_agent_conversation (
     title           VARCHAR(200) NOT NULL,
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_conv_user (user_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 前端历史(读模型,与 Spring AI 记忆解耦:Spring AI 记忆管 LLM 上下文窗口,本表管全量历史展示)
 CREATE TABLE IF NOT EXISTS invoice_agent_message (
@@ -29,4 +29,4 @@ CREATE TABLE IF NOT EXISTS invoice_agent_message (
     content         TEXT         NOT NULL,
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_msg_conv (conversation_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

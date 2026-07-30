@@ -52,6 +52,9 @@ public class ChatController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "会话不存在或不属于当前用户");
         }
 
+        // 首条消息:若标题仍是占位符(如按钮预建的"新会话 …"),用首条消息摘要覆盖,使侧栏标题有意义
+        titleOnFirstMessage(conversationId, request.message());
+
         log.info("[chat] 收到 userId={} conversationId={} message=\"{}\"",
                 userId, conversationId, summarize(request.message()));
         long start = System.nanoTime();
@@ -86,6 +89,17 @@ public class ChatController {
         }
         conversations.create(conversationId, userId, title);
         return conversationId;
+    }
+
+    /** 首条消息时把占位标题(以"新会话"开头)更新为首条消息摘要,与 newConversation 的标题逻辑保持一致。 */
+    private void titleOnFirstMessage(String conversationId, String firstMessage) {
+        String current = conversations.titleOf(conversationId);
+        if (current != null && current.startsWith("新会话")) {
+            String title = summarize(firstMessage);
+            if (!title.isBlank()) {
+                conversations.rename(conversationId, title);
+            }
+        }
     }
 
     private static String requireUserId(HttpServletRequest req) {
