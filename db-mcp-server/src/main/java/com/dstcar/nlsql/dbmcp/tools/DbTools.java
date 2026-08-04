@@ -38,16 +38,23 @@ public class DbTools {
 
     private final DbProperties props;
     private final SqlSafetyGuard guard = new SqlSafetyGuard();
+    private final SchemaCache schemaCache;
 
-    public DbTools(DbProperties props) {
+    public DbTools(DbProperties props, SchemaCache schemaCache) {
         this.props = props;
+        this.schemaCache = schemaCache;
     }
 
     @Tool(name = "list_tables",
             description = "列出账单数据库中所有用户表,含中文注释和近似行数。无参数。")
     public List<TableInfo> listTables() {
+        // 整体缓存:命中即跳过逐表 tableComment/approxRowCount,最有效
+        return schemaCache.get("listTables", props.schemaCacheTtlSeconds(), this::buildListTables);
+    }
+
+    private List<TableInfo> buildListTables() {
         long start = System.nanoTime();
-        log.info("[tool] list_tables 调用");
+        log.info("[tool] list_tables(查库) 调用");
         Set<String> tables = existingTables();
         // 识别分表组:表名形如 <前缀>_<纯数字>,同前缀多张即一组
         Map<String, List<String>> shardGroups = new HashMap<>();
@@ -76,9 +83,13 @@ public class DbTools {
             description = "描述指定表:列(名/类型/可空/主键/中文注释)与外键关系。用于正确编写 JOIN。"
                     + "参数: table 表名(可用 list_tables 查看)。")
     public TableSchema describeTable(String table) {
+        String t = requireTable(table);  // 表不存在仍抛 IllegalArgumentException 回灌给 LLM
+        return schemaCache.get("schema:" + t, props.schemaCacheTtlSeconds(), () -> loadTableSchema(t));
+    }
+
+    private TableSchema loadTableSchema(String t) {
         long start = System.nanoTime();
-        log.info("[tool] describe_table table={}", table);
-        String t = requireTable(table);
+        log.info("[tool] describe_table(查库) table={}", t);
         List<ColumnInfo> columns = new ArrayList<>();
         List<ForeignKey> fks = new ArrayList<>();
         try (Connection c = openReadonlyConnection();
@@ -147,12 +158,15 @@ public class DbTools {
         try {
             guard.validate(sql);
         } catch (IllegalArgumentException e) {
+            // 守卫拒绝(写操作/危险关键字等)也结构化返回,让 LLM 看到被拒原因并放弃或改写
             log.warn("[guard] 拒绝 原因={} sql=\"{}\"", e.getMessage(), summarize(sql));
-            throw e;
+            return new QueryResult(List.of(), List.of(), 0, false, null,
+                    "SQL 被安全规则拒绝: " + e.getMessage());
         }
         QueryResult result = executeCapped(sql);
-        log.info("[tool] run_readonly_sql 完成 返回行数={} 截断={} 耗时={}ms",
-                result.rowCount(), result.truncated(), (System.nanoTime() - start) / 1_000_000);
+        log.info("[tool] run_readonly_sql 完成 返回行数={} 截断={} 错误={} 耗时={}ms",
+                result.rowCount(), result.truncated(), result.error(),
+                (System.nanoTime() - start) / 1_000_000);
         return result;
     }
 
@@ -195,10 +209,13 @@ public class DbTools {
                         ? "结果已达上限(行数<=" + props.rowLimit() + " 或体积<=" + (props.maxBytes() / 1024)
                         + "KB),已截断。如需精确,请缩小查询范围或加 LIMIT。"
                         : null;
-                return new QueryResult(cols, rows, rows.size(), truncated, note);
+                return new QueryResult(cols, rows, rows.size(), truncated, note, null);
             }
         } catch (SQLException e) {
-            throw new IllegalStateException("执行 SQL 失败: " + e.getMessage(), e);
+            // 执行失败不抛异常:把 DB 错误结构化回灌,供 LLM 基于错误文本修正 SQL 重试(上限由 prompt 约束)
+            String msg = e.getMessage();
+            log.warn("[sql-fail] 执行失败 原因={} sql=\"{}\"", msg, summarize(sql));
+            return new QueryResult(List.of(), List.of(), 0, false, null, "执行失败: " + msg);
         }
     }
 
@@ -216,6 +233,10 @@ public class DbTools {
     }
 
     private Set<String> existingTables() {
+        return schemaCache.get("existingTables", props.schemaCacheTtlSeconds(), this::loadExistingTables);
+    }
+
+    private Set<String> loadExistingTables() {
         Set<String> tables = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         try (Connection c = openReadonlyConnection();
              PreparedStatement ps = c.prepareStatement(

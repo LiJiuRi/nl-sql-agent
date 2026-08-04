@@ -22,5 +22,6 @@ app:
     row-limit: 1000
     query-timeout-seconds: 10
     max-bytes: 1048576                  # 1MB
+    schema-cache-ttl-seconds: 600       # schema 缓存 TTL(秒);0 关闭。库结构低频变化,默认 10 分钟
 
 # 日志路由见 logback-spring.xml:全部走 stderr,stdout 留给 JSON-RPC
