@@ -8,6 +8,10 @@
 - **官方 starter 装配**:排除。Boot 4.1 兼容未验证;GLM 自定义端点(Coding Plan)在 starter yaml 中支持不明。
 - **保留 Spring AI 只加流式**:排除。Spring AI 也能流式(MVC Flux),但与"用 AgentScope 2.0 正式版重写"的需求相悖。
 
-**Consequences**:聊天端点 `POST /api/chat` → `POST /api/chat/stream`(SSE);MCP 工具名变为 `mcp__db-server__*`(系统提示词同步更新);上下文记忆不再限 10 条窗口(AgentState 全量,超长会话压缩留作后续);前端发消息改 fetch 流式解析。GLM 思考块事件不转发,与现状一致。
+**Consequences**:聊天端点 `POST /api/chat` → `POST /api/chat/stream`(SSE);上下文记忆不再限 10 条窗口(AgentState 全量,超长会话压缩留作后续);前端发消息改 fetch 流式解析。GLM 思考块事件不转发,与现状一致。
 
 **Status**: accepted。
+
+**实施注记(2026-08-17)**:
+- 文档称 MCP 工具注册名为 `mcp__{server}__{tool}`,GA 2.0.0 实测以**短名**注册(`list_tables` 等),系统提示词沿用原名即可。
+- AgentScope 权限系统默认 ASK:工具调用会停在 `RequireUserConfirmEvent` 等人工审批,表现为 SSE 流静默结束(无结果无错误)。因本 agent 仅挂 4 个只读 DB 工具(SqlSafetyGuard + 只读账号双层兜底),`PermissionMode.BYPASS` 直接放行,真正安全边界在 db-mcp-server 与数据库账号。

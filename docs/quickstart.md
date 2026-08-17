@@ -13,8 +13,8 @@
 架构(详见 [`README.md`](../README.md) / [`architecture.md`](./architecture.md)):
 
 ```
-浏览器(登录页 + 聊天页) ──POST /api/login──► agent-app(Spring Boot 4.1 + Spring AI 2.0 + GLM)
-                          ──POST /api/chat(Bearer JWT)──►     │ MCP / stdio(子进程)
+浏览器(登录页 + 聊天页) ──POST /api/login──► agent-app(Spring Boot 4.1 + AgentScope Java 2.0 + GLM)
+                          ──POST /api/chat/stream(Bearer JWT,SSE 流式)──►     │ MCP / stdio(子进程)
                                                    db-mcp-server(自建只读 MCP,4 工具 + 只读守卫)
                                                                 │ JDBC(只读账号 GRANT SELECT)
                                                    账单库 MySQL(dst_db_bill)
@@ -70,7 +70,7 @@ export MEMORY_DB_PASSWORD=...
 export JWT_SECRET=change-this-to-a-random-secret-at-least-32-chars-long
 ```
 
-> `dst_db_invoice` 库需**先手工建**(`CREATE DATABASE dst_db_invoice`),Agent 启动时会在其中建 `invoice_agent_chat_memory` / `invoice_agent_conversation` / `invoice_agent_message` 三表(`initialize-schema: always`,幂等)。
+> `dst_db_invoice` 库需**先手工建**(`CREATE DATABASE dst_db_invoice`),Agent 启动时会在其中建 `invoice_agent_conversation` / `invoice_agent_message`(业务表,`spring.sql.init`,幂等)与 `invoice_agent_agent_state`(AgentScope 会话状态,自动建)三表。
 
 ## 4. 启动
 
@@ -96,7 +96,7 @@ java -jar agent-app/target/agent-app-0.1.0-SNAPSHOT.jar
 
 打开 http://localhost:8080 ,用预设账号登录(默认 `admin` / `admin123`,生产务必用 `ADMIN_PW_HASH` 覆盖),在聊天框输入分析需求,等待 Agent 自主查库并返回 4 段回答(复述理解 / SQL / 结构化结果 / 业务解读)。
 
-**方式 B — curl(非流式,需先登录拿 token)**
+**方式 B — curl(SSE 流式,需先登录拿 token)**
 
 ```bash
 # 1) 登录,拿 JWT
@@ -104,14 +104,14 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}' | sed 's/.*"token":"\([^"]*\)".*/\1/')
 
-# 2) 带 token 提问
-curl -s -X POST http://localhost:8080/api/chat \
+# 2) 带 token 提问(-N 关闭缓冲,实时看流)
+curl -N -X POST http://localhost:8080/api/chat/stream \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"message": "有哪些表,各多少行"}'
 ```
 
-返回:`{"conversationId":"...","content":"...4段回答..."}`。不带 `Authorization` 头会直接 **401**。`conversationId` 可省略(自动生成),带上即可多轮追问。
+返回 SSE 事件流:`{"type":"start","conversationId":"..."}` → `{"type":"tool","name":"list_tables","state":"start|success"}`(工具进度)→ 连续 `{"type":"delta","text":"..."}`(文本增量,拼起来是 4 段回答)→ `{"type":"done"}`。不带 `Authorization` 头会直接 **401**。`conversationId` 可省略(自动生成),带上即可多轮追问。
 
 ## 6. 试问示例
 
@@ -137,7 +137,7 @@ curl -s -X POST http://localhost:8080/api/chat \
 | `ADMIN_PW_HASH` | admin/admin123 的 BCrypt | 覆盖默认 admin 密码 |
 | `DB_MCP_SERVER_JAR` | `./db-mcp-server/target/db-mcp-server-0.1.0-SNAPSHOT.jar` | 子进程 jar 路径(相对 → 依赖启动 CWD) |
 
-多轮记忆窗口(默认保留最近 10 条)在 `agent-app/src/main/resources/application.yml` 的 `app.memory.max-messages`;**记忆持久化到中心 MySQL(`dst_db_invoice` 库),重启不丢**。
+多轮记忆由 AgentScope 的 `MysqlAgentStateStore` 管理(按 `userId + conversationId` 分桶,保存完整对话上下文,无窗口截断);**持久化到中心 MySQL(`dst_db_invoice` 库),重启不丢**。排障时可设 `AI_LOG_LEVEL=DEBUG` 看 AgentScope 的 LLM 往返与工具调用明细。
 
 ## 8. 常见排障
 
@@ -155,7 +155,7 @@ curl -s -X POST http://localhost:8080/api/chat \
 
 6. **启动报找不到 db-mcp-server jar** → 没在项目根目录启动,或未先执行第 2 步构建。检查 `DB_MCP_SERVER_JAR` 指向的文件存在。
 
-7. **非 Windows 平台子进程拉起失败** → MCP 子进程命令写死为 `${java.home}/bin/java.exe`;Linux/macOS 需把 `agent-app/src/main/resources/application.yml` 里的 `java.exe` 改为 `java`。
+7. **非 Windows 平台子进程拉起失败** → MCP 子进程命令由 `AgentConfig` 按 `os.name` 自动选 `java.exe`/`java`(取自 `${java.home}`);若仍失败,检查该 JDK 的实际可执行文件名。
 
 8. **日志里看不到 db-mcp-server 输出** → 它是 stdio MCP server,日志全部走 stderr,stdout 留给 JSON-RPC。子进程的 stderr 会带到 agent-app 控制台。
 
