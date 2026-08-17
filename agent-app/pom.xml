@@ -25,20 +25,8 @@
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
 
-        <!-- GLM (智谱):Spring AI 2.0 已无 ZhipuAI 专用 starter,
-             改用 OpenAI starter 指向智谱 OpenAI 兼容端点(base-url) -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
-
-        <!-- MCP 客户端(stdio 子进程) -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-client</artifactId>
-        </dependency>
-
-        <!-- AgentScope Java 2.0(ADR-0008:手动装配,不用 starter——Boot 4.1 兼容面零) -->
+        <!-- AgentScope Java 2.0(ADR-0008:手动装配,不用 starter——Boot 4.1 兼容面零)
+             GLM 走 OpenAI 兼容栈 + GLMFormatter;MCP stdio 客户端与 MySQL 状态存储同在 core/扩展模块 -->
         <dependency>
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-core</artifactId>
@@ -55,11 +43,7 @@
             <version>${agentscope.version}</version>
         </dependency>
 
-        <!-- 会话记忆持久化(JDBC,存中心 MySQL — ADR-0007) -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-chat-memory-repository-jdbc</artifactId>
-        </dependency>
+        <!-- MySQL:ConversationRepository + AgentScope MysqlAgentStateStore 共用数据源 -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>

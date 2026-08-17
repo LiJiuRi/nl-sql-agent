@@ -24,6 +24,7 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Spring AI 仅 db-mcp-server 模块还在用(MCP server);agent-app 已切 AgentScope(ADR-0008) -->
         <spring-ai.version>2.0.0</spring-ai.version>
         <agentscope.version>2.0.0</agentscope.version>
         <!-- 保留参数名,使 @Tool 方法参数名(table/sql/limit)能传达给模型 -->
