@@ -67,6 +67,8 @@
         .msg th { background: #222732; }
         .msg strong { color: #fff; }
         .typing { color: var(--muted); font-style: italic; }
+        .msg .tool-status { font-size: 12px; color: #8b949e; padding: 2px 12px; line-height: 1.6; }
+        .msg .tool-status .err { color: #f87171; }
         form { display: flex; gap: 8px; padding: 14px 20px; background: var(--panel); border-top: 1px solid #262b36; }
         input { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1px solid #2c3240; background: #0f1218; color: var(--text); font-size: 14px; outline: none; }
         input:focus { border-color: var(--accent); }
@@ -278,7 +280,7 @@
         $('input').focus();
     }
 
-    // 发消息
+    // 发消息(SSE 流式):文本增量实时渲染,工具调用显示状态行
     $('chat-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const message = $('input').value.trim();
@@ -287,18 +289,63 @@
         $('input').value = '';
         $('send').disabled = true;
         const typing = addMsg('bot', '<span class="typing">正在分析…</span>');
+        let acc = '';       // 累积的原始 markdown
+        let toolsEl = null; // 工具状态行容器(首个工具事件时创建)
         try {
-            const res = await api('/api/chat', {
-                method: 'POST',
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            const res = await fetch('/api/chat/stream', {
+                method: 'POST', headers,
                 body: JSON.stringify({ conversationId, message })
             });
+            if (res.status === 401) {
+                token = null; localStorage.removeItem('token');
+                showLogin();
+                throw new Error('未登录或登录已过期');
+            }
             if (!res.ok) {
                 const txt = await res.text();
                 throw new Error('HTTP ' + res.status + (txt ? ': ' + txt : ''));
             }
-            const data = await res.json();
-            conversationId = data.conversationId;
-            typing.innerHTML = renderMarkdown(data.content || '(空响应)');
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                let sep;
+                while ((sep = buf.indexOf('\n\n')) >= 0) {
+                    const frame = buf.slice(0, sep);
+                    buf = buf.slice(sep + 2);
+                    const dataLine = frame.split('\n').find(l => l.startsWith('data:'));
+                    if (!dataLine) continue;
+                    const ev = JSON.parse(dataLine.slice(5));
+                    if (ev.type === 'start') {
+                        conversationId = ev.conversationId;
+                    } else if (ev.type === 'delta') {
+                        acc += ev.text || '';
+                        typing.innerHTML = renderMarkdown(acc);
+                    } else if (ev.type === 'tool') {
+                        if (!toolsEl) {
+                            toolsEl = document.createElement('div');
+                            toolsEl.className = 'tool-status';
+                            typing.parentNode.insertBefore(toolsEl, typing);
+                        }
+                        const line = document.createElement('div');
+                        if (ev.state === 'start') line.textContent = '⚙ ' + ev.name + ' …';
+                        else if (ev.state === 'success') line.textContent = '✓ ' + ev.name;
+                        else { line.textContent = '✗ ' + ev.name + ' 失败'; line.className = 'err'; }
+                        toolsEl.appendChild(line);
+                    } else if (ev.type === 'error') {
+                        acc += (acc ? '\n\n' : '') + '> ⚠️ ' + ev.message;
+                        typing.innerHTML = renderMarkdown(acc);
+                    }
+                    messagesEl().scrollTop = messagesEl().scrollHeight;
+                }
+            }
+            if (!acc) acc = '(空响应)';
+            typing.innerHTML = renderMarkdown(acc);
             loadConversations(); // 刷新侧栏(新会话/标题)
         } catch (err) {
             typing.innerHTML = '<span style="color:#f87171">请求失败:' + esc(err.message) + '</span>';
