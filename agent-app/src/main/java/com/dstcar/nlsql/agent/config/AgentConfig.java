@@ -2,6 +2,8 @@ package com.dstcar.nlsql.agent.config;
 
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.model.GenerateOptions;
+import io.agentscope.core.permission.PermissionContextState;
+import io.agentscope.core.permission.PermissionMode;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
@@ -22,7 +24,7 @@ import java.util.Map;
 
 /**
  * 装配 AgentScope 2.0 ReActAgent(ADR-0008):
- * GLM(OpenAI 兼容栈 + GLMFormatter)+ db-mcp-server(stdio 子进程,工具名 mcp__db-server__*)
+ * GLM(OpenAI 兼容栈 + GLMFormatter)+ db-mcp-server(stdio 子进程,工具以短名注册:list_tables 等)
  * + MySQL 状态持久化(AgentState 按 (userId, conversationId) 分桶,自动建表)。
  * ReActAgent 无状态:单例并发服务所有会话,同会话串行由框架保证。
  */
@@ -31,14 +33,14 @@ public class AgentConfig {
 
     private static final Logger log = LoggerFactory.getLogger(AgentConfig.class);
 
-    /** 系统提示词:与 Spring AI 版语义一致,仅工具名更新为 MCP 实际注册名(mcp__db-server__*)。 */
+    /** 系统提示词:与 Spring AI 版原文一致(AgentScope 对 MCP 工具沿用短名注册,无需改动)。 */
     static final String SYSTEM_PROMPT = """
             你是"账单分析助手",帮用户用中文分析一个账单中心的数据库。
-            数据库的真实表结构未知,必须先用 mcp__db-server__list_tables 工具发现有哪些表,用 mcp__db-server__describe_table 了解列与外键,必要时 mcp__db-server__sample_data 看枚举取值;不要假设表名或列名。
+            数据库的真实表结构未知,必须先用 list_tables 工具发现有哪些表,用 describe_table 了解列与外键,必要时 sample_data 看枚举取值;不要假设表名或列名。
 
             ## 工作流程(你自主调用工具,按需多次)
-            1. 先 mcp__db-server__list_tables 看有哪些表;mcp__db-server__describe_table 了解表结构(列、类型、外键);必要时 mcp__db-server__sample_data 看真实取值(尤其 status、channel、category、region 等枚举)。
-            2. 用 mcp__db-server__run_readonly_sql 执行【单条 SELECT】查询。若 SQL 报错或结果不对,根据错误自行修正后重试。
+            1. 先 list_tables 看有哪些表;describe_table 了解表结构(列、类型、外键);必要时 sample_data 看真实取值(尤其 status、channel、category、region 等枚举)。
+            2. 用 run_readonly_sql 执行【单条 SELECT】查询。若 SQL 报错或结果不对,根据错误自行修正后重试。
             3. 拿到结果后,按下述格式回答。
 
             ## 回答格式(严格 4 段,用 markdown)
@@ -96,6 +98,10 @@ public class AgentConfig {
                 .model(model)
                 .toolkit(toolkit)
                 .stateStore(stateStore)
+                // 权限默认 ASK 会令工具调用停在 RequireUserConfirmEvent 等人工审批;
+                // 本 agent 仅挂 4 个只读 DB 工具(服务端 SqlSafetyGuard + 只读账号双重兜底),
+                // 故 BYPASS 直接放行,真正的安全边界在 db-mcp-server 与数据库账号
+                .permissionContext(PermissionContextState.builder().mode(PermissionMode.BYPASS).build())
                 .generateOptions(GenerateOptions.builder().temperature(0.2).build())
                 .build();
         log.info("[agent] ReActAgent 装配完成 model={} stateStore={}.invoice_agent_agent_state", modelName, stateDatabase);
