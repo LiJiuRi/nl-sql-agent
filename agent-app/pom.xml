@@ -38,6 +38,23 @@
             <artifactId>spring-ai-starter-mcp-client</artifactId>
         </dependency>
 
+        <!-- AgentScope Java 2.0(ADR-0008:手动装配,不用 starter——Boot 4.1 兼容面零) -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-core</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-model-openai</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-mysql</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+
         <!-- 会话记忆持久化(JDBC,存中心 MySQL — ADR-0007) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
