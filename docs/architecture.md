@@ -52,7 +52,7 @@
 |---|---|---|
 | ① 认证(轻量) | `agent-app/.../auth/AuthController.java:26` · `login()` + `JwtFilter.java:29` | `POST /api/login` 校验预设账号(BCrypt)发 JWT;`JwtFilter` 拦 `/api/*` 校验 `Bearer` token,把 userId 注入请求(ADR-0007) |
 | ② HTTP 入口(SSE) | `agent-app/.../chat/ChatStreamController.java:58` · `stream()` | 收 `POST /api/chat/stream`(需 JWT),生成/校验 `conversationId`,把 `streamEvents()` 的 `Flux<AgentEvent>` 投影为 5 种 SSE 事件(`start`/`tool`/`delta`/`done`/`error`);`[chat-stream]` 入口/工具/出口/失败日志(`:71`/`:113`/`:91`/`:98`) |
-| ③ Agent 装配 | `agent-app/.../config/AgentConfig.java:59` · `agent()` | 把「GLM 模型 + MCP 工具 + MySQL 状态存储」组装成单例无状态 `ReActAgent`;权限 `BYPASS`(`:104`,只读工具集 + DB 层兜底) |
+| ③ Agent 装配 | `agent-app/.../config/AgentConfig.java:62` · `agent()` | 把「GLM 模型 + MCP 工具 + MySQL 状态存储」组装成单例无状态 `ReActAgent`;权限 `BYPASS`(`:104`,只读工具集 + DB 层兜底) |
 | ③ 系统提示词 | `AgentConfig.java:37` · `SYSTEM_PROMPT` | 定义工作流、**4 段回答格式**、反幻觉硬约束 |
 | ③ 多轮记忆 | `AgentConfig.java:92` · `MysqlAgentStateStore` | AgentScope `AgentState` 按 `(userId, conversationId)` 分桶持久化(表 `invoice_agent_agent_state`,自动建),完整上下文无窗口截断 |
 | ③ GLM 调用配置 | `AgentConfig.java:69` + `application.yml`(`app.zhipu.*`) | `OpenAIChatModel` + `GLMFormatter`:base-url(coding 端点)/api-key/model(glm-5.2)/temperature 0.2,OpenAI 兼容栈 |
@@ -102,7 +102,7 @@ agent-app 是 MCP **client**(`AgentConfig.java:80` `McpClientBuilder.stdioTransp
 AgentScope `MysqlAgentStateStore`(`AgentConfig.java:92`)按 `(userId, conversationId)` 二元组分桶持久化 `AgentState`(完整对话上下文含工具结果,**重启不丢**,表 `dst_db_invoice.invoice_agent_agent_state` 自动建)。agent 实例本身无状态,同一会话的调用按到达顺序串行,跨会话并行。所以「只看华东」这种追问能结合上一条上下文。
 
 ### ⑤ 可观测性
-`[chat-stream]` 入口/工具/出口/失败(`ChatStreamController.java:71/113/91/98`)+ `[agent]` 装配(`AgentConfig.java:88/102`)+ `[tool]`/`[guard]`/`[init]` 各节点(`DbTools`/`SqlSafetyGuard`/`DatabaseInitializer` 各方法 + `logback-spring.xml`)。异常在 SSE 流上以 `{"type":"error"}` 事件返回(鉴权仍 401/404)。
+`[chat-stream]` 入口/工具/出口/失败(`ChatStreamController.java:71/113/91/98`)+ `[agent]` 装配(`AgentConfig.java:90/107`)+ `[tool]`/`[guard]`/`[init]` 各节点(`DbTools`/`SqlSafetyGuard`/`DatabaseInitializer` 各方法 + `logback-spring.xml`)。异常在 SSE 流上以 `{"type":"error"}` 事件返回(鉴权仍 401/404)。
 
 ## 边界提醒
 

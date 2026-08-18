@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>agent-app</artifactId>
-    <name>agent-app (Spring AI 2.0 + GLM 分析 Agent + Web UI)</name>
+    <name>agent-app (AgentScope Java 2.0 + GLM 分析 Agent + Web UI)</name>
 
     <dependencies>
         <dependency>

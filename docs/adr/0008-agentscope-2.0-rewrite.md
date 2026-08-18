@@ -15,3 +15,4 @@
 **实施注记(2026-08-17)**:
 - 文档称 MCP 工具注册名为 `mcp__{server}__{tool}`,GA 2.0.0 实测以**短名**注册(`list_tables` 等),系统提示词沿用原名即可。
 - AgentScope 权限系统默认 ASK:工具调用会停在 `RequireUserConfirmEvent` 等人工审批,表现为 SSE 流静默结束(无结果无错误)。因本 agent 仅挂 4 个只读 DB 工具(SqlSafetyGuard + 只读账号双层兜底),`PermissionMode.BYPASS` 直接放行,真正安全边界在 db-mcp-server 与数据库账号。
+- MCP 子进程无显式关闭路径(旧 spring-ai-starter-mcp-client 的 context 关闭清理未复制):依赖父进程退出 → stdin EOF 使 db-mcp-server 自行退出。2026-08-17 复查实测多次启停(含硬杀父进程)后零孤儿进程,接受该行为(决策:F1-A);若未来出现孤儿可补 DisposableBean 显式清理。
